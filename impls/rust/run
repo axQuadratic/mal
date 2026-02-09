@@ -1,2 +1,2 @@
-#!/bin/sh
-exec $(dirname $0)/target/release/${STEP:-stepA_mal} "${@}"
+#!/usr/bin/env bash
+exec cargo run --bin ${STEP:-stepA_mal} -- "${@}"
