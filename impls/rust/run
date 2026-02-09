@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec cargo run --bin ${STEP:-stepA_mal} -- "${@}"
+exec cargo run -p ${STEP:-stepA_mal} -- "${@}"
