@@ -1,6 +1,7 @@
 use std::vec::Vec;
 
 use crate::error::MalError;
+use crate::error::MalResult as Result;
 use crate::types::*;
 
 // All types of tokens that can be expected to appear in a mal program
@@ -20,7 +21,7 @@ enum Token {
     TildeAtSign,
     String(String),
     Comment(String),
-    Symbol(String)
+    Atom(String)
 }
 
 impl std::fmt::Display for Token {
@@ -40,7 +41,7 @@ impl std::fmt::Display for Token {
             Self::TildeAtSign  => "~@",
             Self::Comment(s)   => s,
             Self::String(s)    => s,
-            Self::Symbol(s)    => s
+            Self::Atom(s)      => s
         };
 
         write!(f, "{}", s)
@@ -71,7 +72,7 @@ impl Tokenizer {
         return next;
     }
 
-    fn tokenize(&mut self) -> Result<Vec<Token>, MalError> {
+    fn tokenize(&mut self) -> Result<Vec<Token>> {
         let mut tokens = vec![];
 
         'main: while let Some(next_token) = self.consume() {
@@ -132,7 +133,7 @@ impl Tokenizer {
                         continue 'main;
                     }
 
-                    return Err(format!("Unbalanced string '{}'", s).into());
+                    return Err("Unbalanced string".into());
                 },
 
                 ';' => {
@@ -153,7 +154,7 @@ impl Tokenizer {
                 }
 
                 _ => {
-                    // Tokenise any other characters as a symbol until a special character or whitespace is hit
+                    // Tokenise any other characters as an atom until a special character or whitespace is hit
                     let mut s = String::new();
                     s.push(next_token);
 
@@ -172,7 +173,7 @@ impl Tokenizer {
                         s.push(next_token);
                     }
 
-                    tokens.push(Token::Symbol(s));
+                    tokens.push(Token::Atom(s));
                     continue;
                 }
             };
@@ -198,53 +199,69 @@ impl Parser {
         }
     }
     
-    // fn peek<'a>(&'a self) -> Option<&'a u8> {
-    //     self.tokens.get(self.index)
-    // }
+    fn peek<'a>(&'a self) -> Option<&'a Token> {
+        self.tokens.get(self.index)
+    }
 
-    // fn consume<'a>(&'a mut self) -> Option<&'a u8> {
-    //     let token = self.tokens.get(self.index);
-    //     self.index += 1;
-    //     return token;
-    // }
+    fn consume<'a>(&'a mut self) -> Option<&'a Token> {
+        let token = self.tokens.get(self.index);
+        self.index += 1;
+        return token;
+    }
 
-    // fn parse(&mut self) -> Result<Vec<Box<dyn MalValue>>, MalError> {
-    //     let mut forms = vec![];
+    fn parse(&mut self) -> Result<Vec<Box<dyn MalValue>>> {
+        let mut forms = vec![];
 
-    //     // While tokens remain in the input data, keep looking for Lisp forms
-    //     while let Some(next_token) = self.peek() {
-    //         forms.push(self.parse_form());
-    //     }
+        // While tokens remain in the input data, keep looking for Lisp forms
+        while let Some(next_token) = self.peek() {
+            forms.push(self.parse_form()?);
+        }
 
-    //     return Ok(forms);
-    // }
+        return Ok(forms);
+    }
 
-    // // Get the next Lisp form found in the parser; either a list or an atom
-    // fn parse_form(&mut self) -> Result<Box<dyn MalValue>, MalError> {
-    //     let Some(next_token) = self.peek() else {
-    //         return Err("Unexpected end of input".into());
-    //     }
+    // Get the next Lisp form found in the parser; either a list or an atom
+    fn parse_form(&mut self) -> Result<Box<dyn MalValue>> {
+        let Some(next_token) = self.peek() else {
+            return Err("Unexpected end of input".into());
+        };
 
-    //     match next_token {
-    //         Token::OpenParen => {
-    //             // This form is a list, start reading it from the next token
-    //             self.consume()
-    //             self.read_list()
-    //         },
+        match next_token {
+            Token::OpenParen => {
+                // This form is a list, start reading it from the next token
+                self.consume();
+                self.read_list()
+            },
 
-    //         _ => {
-                
-    //         }
-    //     }
-    // }
+            // If the form does not match any other pattern, read it as an atom
+            _ => self.read_list()
+        }
+    }
+
+    // Read a list with the first token at the current position
+    fn read_list(&mut self) -> Result<ListValue> {
+        let list = ListValue::new();
+        
+        while let Some(next_token) = self.peek() {
+            if *next_token == Token::CloseParen {
+                // End of list
+                self.consume();
+                return Ok(list);
+            }
+
+            list.push(parse_form()?);
+        }
+
+        Err("Unbalanced list".into())
+    }
 }
 
 pub fn parse_line(input: String) {
     let mut tokenizer = Tokenizer::new(input);
     let tokens = tokenizer.tokenize().unwrap();
     
-    // let mut parser = Parser::new(tokens);
-    // let forms = parser.parse().unwrap();
+    let mut parser = Parser::new(tokens);
+    let forms = parser.parse().unwrap();
 
     println!("{:?}", tokens);
 }

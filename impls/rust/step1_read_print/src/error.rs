@@ -1,6 +1,8 @@
 use std::fmt;
 use std::convert::From;
 
+pub type MalResult<T> = Result<T, MalError>;
+
 #[derive(Debug)]
 pub struct MalError(pub String);
 
